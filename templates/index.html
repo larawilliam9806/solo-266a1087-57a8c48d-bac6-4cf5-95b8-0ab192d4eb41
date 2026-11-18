@@ -45,7 +45,7 @@
 <body>
 <header>
   <h1>地铁每日首程客流 · 差分隐私查询平台</h1>
-  <p>每次新查询添加 Laplace(0, 2) 噪声并扣除 {{ query_cost }} 隐私预算,每日总额 {{ daily_budget }};相同查询复用原结果,不再扣费。查询页只显示加噪结果。</p>
+  <p>每次新查询添加 Laplace(0, 2) 噪声并扣除 {{ query_cost }} 隐私预算,每日总额 {{ daily_budget }};相同查询复用原结果,不再扣费。查询页只显示加噪结果。<a href="/priority" style="color:#cfe3f5">前往「优先调查方向抽选」→</a></p>
 </header>
 <main>
   <section>
@@ -58,7 +58,7 @@
       <button type="submit">上传 / 整日替换</button>
     </form>
     <div class="msg" id="uploadMsg"></div>
-    <div class="hint">首个成功查询会锁定当天源数据;锁定前可整日替换,锁定后拒绝替换。</div>
+    <div class="hint">首个成功查询或优先抽选会锁定当天源数据;锁定前可整日替换,锁定后拒绝替换。</div>
   </section>
 
   <section>

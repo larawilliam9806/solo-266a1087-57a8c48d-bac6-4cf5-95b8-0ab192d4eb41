@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>地铁客流方向 · 优先调查抽选</title>
+<style>
+  :root { color-scheme: light; }
+  * { box-sizing: border-box; }
+  body { font-family: "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+         margin: 0; background: #f4f6f8; color: #1f2933; }
+  header { background: #0f4c81; color: #fff; padding: 16px 24px; }
+  header h1 { margin: 0; font-size: 20px; }
+  header p { margin: 6px 0 0; font-size: 13px; opacity: .88; line-height: 1.6; }
+  main { max-width: 960px; margin: 24px auto; padding: 0 16px;
+         display: grid; gap: 20px; }
+  section { background: #fff; border-radius: 10px; padding: 20px 24px;
+            box-shadow: 0 1px 3px rgba(15, 76, 129, .12); }
+  h2 { margin: 0 0 12px; font-size: 17px; color: #0f4c81; }
+  label { display: block; font-size: 13px; margin: 10px 0 4px; color: #52606d; }
+  input[type=date], input[type=file], input[type=text], select {
+    width: 100%; padding: 8px; border: 1px solid #cbd2d9; border-radius: 6px;
+    font-size: 14px; background: #fff; }
+  button { margin-top: 14px; padding: 9px 22px; border: 0; border-radius: 6px;
+           background: #0f4c81; color: #fff; font-size: 14px; cursor: pointer; }
+  button:hover { background: #0b3a63; }
+  button:disabled { background: #9aa5b1; cursor: not-allowed; }
+  .msg { margin-top: 12px; padding: 10px 12px; border-radius: 6px; font-size: 14px;
+         display: none; white-space: pre-wrap; }
+  .msg.ok  { display: block; background: #e3f2e9; color: #1c6b3c; }
+  .msg.err { display: block; background: #fdecea; color: #b3261e; }
+  .result { margin-top: 14px; display: none; }
+  .badges { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 6px; }
+  .badge { background: #eef2f6; border-radius: 999px; padding: 5px 14px;
+           font-size: 13px; color: #334e68; }
+  .badge.locked { background: #fdecea; color: #b3261e; }
+  table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 13px; }
+  th, td { text-align: left; padding: 7px 8px; border-bottom: 1px solid #e4e7eb;
+           vertical-align: top; }
+  th { color: #52606d; font-weight: 600; }
+  .hint { font-size: 12px; color: #7b8794; margin-top: 6px; line-height: 1.6; }
+  .candidate { border: 1px solid #d9e2ec; border-radius: 8px; padding: 12px 14px;
+               margin-top: 12px; background: #fbfcfd; }
+  .candidate-head { display: flex; justify-content: space-between; align-items: center;
+                    font-size: 13px; color: #0f4c81; font-weight: 600; }
+  .candidate .row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px;
+                    margin-top: 8px; }
+  .link-btn { background: none; border: 0; color: #b3261e; cursor: pointer;
+              font-size: 13px; padding: 4px 6px; margin: 0; }
+  .link-btn:hover { background: none; text-decoration: underline; }
+  .inline-btn { background: #eef2f6; color: #0f4c81; margin-top: 12px; }
+  .inline-btn:hover { background: #e0e8f0; }
+  .slots-row { display: flex; align-items: center; gap: 12px; margin-top: 14px;
+               flex-wrap: wrap; }
+  .slots-row select { width: auto; min-width: 120px; }
+  ol.priority { margin: 14px 0 0; padding-left: 26px; font-size: 15px; }
+  ol.priority li { margin-bottom: 12px; }
+  ol.priority .stations { font-size: 13px; color: #52606d; margin-top: 3px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>地铁客流方向 · 优先调查抽选</h1>
+  <p>从候选进出站走廊中抽选优先调查的客流方向:客流较大的候选更有机会入选。
+     每次新抽选扣除 {{ selection_cost }} 隐私预算,整次抽选(无论几个名额)合计 ε={{ selection_epsilon }};
+     与人数查询共享每日 {{ daily_budget }} 的预算。页面只显示选中的方向,不显示人数或乘客信息。
+     <a href="/" style="color:#cfe3f5">← 返回人数查询</a></p>
+</header>
+<main>
+  <section>
+    <h2>① 选择日期与候选方向</h2>
+    <label for="sDate">数据日期</label>
+    <input type="date" id="sDate" required>
+
+    <div id="candidateList"></div>
+    <button id="addCandidateBtn" type="button" class="inline-btn">＋ 添加候选</button>
+    <div class="hint">每个候选填写非空的进站集合与出站集合,站点之间用逗号、顿号、分号或空格分隔;
+      候选之间站点范围可以重叠。同一乘客可能命中多个候选。候选数量 {{ min_candidates }}～{{ max_candidates }} 个。</div>
+
+    <div class="slots-row">
+      <label for="slotsSel" style="margin:0">名额(优先方向数量)</label>
+      <select id="slotsSel"></select>
+    </div>
+    <div class="hint">名额 1～{{ max_slots }},且不超过候选数量;多名额仍共用同一次 ε={{ selection_epsilon }} 的隐私预算。</div>
+
+    <button id="selectBtn" type="button">按客流优先抽选</button>
+    <div class="msg" id="selectMsg"></div>
+    <div class="result" id="selectResult"></div>
+  </section>
+
+  <section>
+    <h2>② 当日状态</h2>
+    <div class="badges" id="statusBadges"></div>
+    <div class="hint">源数据由上传页维护;首个成功查询或抽选后当天源数据即被锁定。</div>
+  </section>
+</main>
+<script>
+const $ = id => document.getElementById(id);
+const MIN_CANDIDATES = {{ min_candidates }};
+const MAX_CANDIDATES = {{ max_candidates }};
+const MAX_SLOTS = {{ max_slots }};
+const SELECTION_COST = {{ selection_cost }};
+
+function showMsg(el, text, ok) {
+  el.textContent = text;
+  el.className = "msg " + (ok ? "ok" : "err");
+}
+
+function escapeHtml(text) {
+  return String(text).replace(/[&<>"']/g, ch => ({
+    "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
+  })[ch]);
+}
+
+function addCandidate(focus) {
+  const list = $("candidateList");
+  if (list.children.length >= MAX_CANDIDATES) return;
+  const box = document.createElement("div");
+  box.className = "candidate";
+  box.innerHTML =
+    `<div class="candidate-head"><span class="title"></span>` +
+    `<button type="button" class="link-btn remove">移除</button></div>` +
+    `<div class="row">` +
+    `<div><label>进站集合</label><input type="text" class="in-st" ` +
+    `placeholder="例如:西直门, 国贸"></div>` +
+    `<div><label>出站集合</label><input type="text" class="out-st" ` +
+    `placeholder="例如:望京, 国贸"></div>` +
+    `</div>`;
+  box.querySelector(".remove").addEventListener("click", () => {
+    box.remove(); renumber(); syncSlots(); syncButtons();
+  });
+  list.appendChild(box);
+  renumber(); syncSlots(); syncButtons();
+  if (focus) box.querySelector(".in-st").focus();
+}
+
+function renumber() {
+  const boxes = Array.from($("candidateList").children);
+  boxes.forEach((box, i) => {
+    box.querySelector(".title").textContent = `候选 ${i + 1}`;
+    box.querySelector(".remove").style.visibility = boxes.length > 1 ? "visible" : "hidden";
+  });
+}
+
+function syncSlots() {
+  const n = $("candidateList").children.length;
+  const prev = parseInt($("slotsSel").value, 10);
+  const limit = Math.max(1, Math.min(MAX_SLOTS, n));
+  $("slotsSel").innerHTML = "";
+  for (let i = 1; i <= limit; i++) {
+    $("slotsSel").add(new Option(String(i), String(i)));
+  }
+  if (prev >= 1 && prev <= limit) $("slotsSel").value = String(prev);
+}
+
+function syncButtons() {
+  $("addCandidateBtn").disabled = $("candidateList").children.length >= MAX_CANDIDATES;
+}
+
+function splitStations(text) {
+  return text.split(/[,，、;；\s]+/).map(s => s.trim()).filter(Boolean);
+}
+
+function collectCandidates() {
+  return Array.from($("candidateList").children).map(box => ({
+    in_stations: splitStations(box.querySelector(".in-st").value),
+    out_stations: splitStations(box.querySelector(".out-st").value),
+  }));
+}
+
+async function refreshStatus() {
+  const date = $("sDate").value;
+  if (!date) return;
+  const res = await fetch("/api/status?date=" + encodeURIComponent(date));
+  const st = await res.json();
+  if (!st.ok) return;
+  $("statusBadges").innerHTML =
+    `<span class="badge">源数据行数:${st.rows}</span>` +
+    `<span class="badge">预算:已用 ${st.budget_spent} / ${st.daily_budget}(剩余 ${st.budget_remaining})</span>` +
+    `<span class="badge ${st.locked ? "locked" : ""}">` +
+    `${st.locked ? "源数据已锁定" : (st.rows ? "源数据未锁定(可替换)" : "尚无源数据")}</span>`;
+}
+
+$("addCandidateBtn").addEventListener("click", () => addCandidate(true));
+
+$("selectBtn").addEventListener("click", async () => {
+  if (!$("sDate").value) { showMsg($("selectMsg"), "请先选择数据日期", false); return; }
+  const candidates = collectCandidates();
+  const msg = $("selectMsg"), out = $("selectResult");
+  if (candidates.length < MIN_CANDIDATES || candidates.length > MAX_CANDIDATES) {
+    showMsg(msg, `候选数量必须在 ${MIN_CANDIDATES}～${MAX_CANDIDATES} 个之间`, false); return;
+  }
+  for (let i = 0; i < candidates.length; i++) {
+    if (!candidates[i].in_stations.length || !candidates[i].out_stations.length) {
+      showMsg(msg, `候选 ${i + 1} 的进站集合与出站集合均不能为空`, false); return;
+    }
+  }
+  const slots = parseInt($("slotsSel").value, 10);
+  if (slots > candidates.length) {
+    showMsg(msg, "名额不能超过候选数量", false); return;
+  }
+
+  $("selectBtn").disabled = true;
+  try {
+    const res = await fetch("/select", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ date: $("sDate").value, candidates, slots }),
+    });
+    const data = await res.json();
+    if (data.ok) {
+      msg.className = "msg"; msg.style.display = "none";
+      out.style.display = "block";
+      const items = data.selected.map((item, i) =>
+        `<li><b>第 ${i + 1} 优先</b>` +
+        `<div class="stations">进站:${escapeHtml(item.in_stations.join("、"))}</div>` +
+        `<div class="stations">出站:${escapeHtml(item.out_stations.join("、"))}</div></li>`).join("");
+      out.innerHTML = `<ol class="priority">${items}</ol>` +
+        `<div class="hint">${data.cached
+          ? "相同请求,复用已发布的优先顺序,未扣费。"
+          : `新抽选,已扣 ${SELECTION_COST} 隐私预算。`}` +
+        (data.budget_remaining !== undefined
+          ? ` 当日剩余预算:${data.budget_remaining}` : "") + `</div>`;
+    } else {
+      out.style.display = "none";
+      showMsg(msg, "抽选失败:" + data.error, false);
+    }
+  } catch (err) {
+    showMsg(msg, "抽选失败:" + err, false);
+  } finally {
+    $("selectBtn").disabled = false;
+    refreshStatus();
+  }
+});
+
+$("sDate").addEventListener("change", refreshStatus);
+
+const today = new Date().toISOString().slice(0, 10);
+$("sDate").value = today;
+addCandidate(false);
+addCandidate(false);
+refreshStatus();
+</script>
+</body>
+</html>
